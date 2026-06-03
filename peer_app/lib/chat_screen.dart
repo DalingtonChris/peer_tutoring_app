@@ -20,13 +20,13 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  static const String _baseUrl = 'http://192.168.1.145:3000';
+  static const String _baseUrl = 'http://localhost:3000';
 
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<Map<String, dynamic>> _messages = [];
 
-  late IO.Socket _socket;
+  IO.Socket? _socket;
   bool _isConnected = false;
   bool _isLoadingHistory = true;
 
@@ -37,7 +37,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _initSocket();
   }
 
-  // ── 1. Load past messages from MySQL ─────────────────────────────────────
   Future<void> _loadMessageHistory() async {
     try {
       final response = await http
@@ -47,59 +46,74 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (response.statusCode == 200) {
         final List<dynamic> history = jsonDecode(response.body);
-        setState(() {
-          _messages.addAll(history.map((m) => {
-                'text': m['message_text'],
-                'senderId': m['sender_id'],
-                'time': m['created_at'],
-              }));
-          _isLoadingHistory = false;
-        });
-        _scrollToBottom();
+        if (mounted) {
+          setState(() {
+            _messages.addAll(history.map((m) => {
+                  'text': m['message_text'],
+                  'senderId': m['sender_id'],
+                  'time': m['created_at'],
+                }));
+            _isLoadingHistory = false;
+          });
+          _scrollToBottom();
+        }
       }
     } catch (_) {
-      setState(() => _isLoadingHistory = false);
+      if (mounted) setState(() => _isLoadingHistory = false);
     }
   }
 
-  // ── 2. Connect to Socket.IO ───────────────────────────────────────────────
   void _initSocket() {
-    _socket = IO.io(_baseUrl, <String, dynamic>{
-      'transports': ['websocket'],
-      'autoConnect': true,
-    });
+    // ── Force a brand-new connection every time ──────────────────────────
+    _socket = IO.io(_baseUrl, IO.OptionBuilder()
+        .setTransports(['websocket'])
+        .disableAutoConnect()
+        .enableForceNew()        // ← key fix: never reuse old socket
+        .build());
 
-    _socket.onConnect((_) {
-      setState(() => _isConnected = true);
-      // Join the shared room for these two users
-      _socket.emit('join_room', {
+    _socket!.onConnect((_) {
+      if (mounted) setState(() => _isConnected = true);
+      // Join the shared room
+      _socket!.emit('join_room', {
         'senderId': widget.currentUserId,
         'receiverId': widget.receiverId,
       });
     });
 
-    _socket.onDisconnect((_) => setState(() => _isConnected = false));
+    _socket!.onDisconnect((_) {
+      if (mounted) setState(() => _isConnected = false);
+    });
 
-    // ── 3. Listen for incoming messages ──────────────────────────────────
-    _socket.on('receive_message', (data) {
-      // Avoid duplicating the message we just sent ourselves
-      if (data['sender_id'] != widget.currentUserId) {
+    _socket!.onConnectError((data) => debugPrint('❌ Connect error: $data'));
+    _socket!.onError((data) => debugPrint('❌ Socket error: $data'));
+
+    // ── Listen for incoming messages ──────────────────────────────────────
+    _socket!.on('receive_message', (data) {
+      // Only add if it's from the OTHER person (not ourselves)
+      final incomingSenderId = data['sender_id'];
+      final senderIdInt = incomingSenderId is int
+          ? incomingSenderId
+          : int.tryParse(incomingSenderId.toString()) ?? -1;
+
+      if (senderIdInt != widget.currentUserId && mounted) {
         setState(() {
           _messages.add({
             'text': data['message_text'],
-            'senderId': data['sender_id'],
+            'senderId': senderIdInt,
             'time': data['timestamp'],
           });
         });
         _scrollToBottom();
       }
     });
+
+    // ── Actually connect ──────────────────────────────────────────────────
+    _socket!.connect();
   }
 
-  // ── 4. Send a message ─────────────────────────────────────────────────────
   void _sendMessage() {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _socket == null) return;
 
     final messageData = {
       'sender_id': widget.currentUserId,
@@ -107,7 +121,7 @@ class _ChatScreenState extends State<ChatScreen> {
       'message_text': text,
     };
 
-    // Optimistically add to UI
+    // Optimistically add to UI immediately
     setState(() {
       _messages.add({
         'text': text,
@@ -116,7 +130,7 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     });
 
-    _socket.emit('send_message', messageData);
+    _socket!.emit('send_message', messageData);
     _messageController.clear();
     _scrollToBottom();
   }
@@ -135,7 +149,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    _socket.dispose();
+    _socket?.disconnect();
+    _socket?.dispose();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -200,7 +215,6 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // ── Message List ───────────────────────────────────────────────────
           Expanded(
             child: _isLoadingHistory
                 ? const Center(
@@ -230,18 +244,18 @@ class _ChatScreenState extends State<ChatScreen> {
                         itemCount: _messages.length,
                         itemBuilder: (context, index) {
                           final msg = _messages[index];
-                          final isMe =
-                              msg['senderId'] == widget.currentUserId;
+                          final sId = msg['senderId'];
+                          final senderIdInt = sId is int
+                              ? sId
+                              : int.tryParse(sId.toString()) ?? -1;
+                          final isMe = senderIdInt == widget.currentUserId;
                           return _buildBubble(msg, isMe);
                         },
                       ),
           ),
-
-          // ── Input Bar ──────────────────────────────────────────────────────
           Container(
             color: Colors.white,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: SafeArea(
               top: false,
               child: Row(
@@ -297,8 +311,7 @@ class _ChatScreenState extends State<ChatScreen> {
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.72,
         ),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: isMe ? const Color(0xFF7B2FBE) : Colors.white,
           borderRadius: BorderRadius.only(

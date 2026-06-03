@@ -22,7 +22,7 @@ class TutorSetupScreen extends StatefulWidget {
 }
 
 class _TutorSetupScreenState extends State<TutorSetupScreen> {
-  final String _baseUrl = 'http://192.168.1.145:3000';
+  final String _baseUrl = 'http://localhost:3000';
   final _bioController = TextEditingController();
 
   bool _isSaving = false;

@@ -20,7 +20,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final String _baseUrl = 'http://192.168.1.145:3000';
+  final String _baseUrl = 'http://localhost:3000';
   List<dynamic> _studentRequests = [];
   bool _loadingRequests = true;
 

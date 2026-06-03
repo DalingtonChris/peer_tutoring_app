@@ -21,7 +21,7 @@ class TutorSetupScreen extends StatefulWidget {
 
 class _TutorSetupScreenState extends State<TutorSetupScreen>
     with SingleTickerProviderStateMixin {
-  static const String _baseUrl = 'http://192.168.1.145:3000';
+  static const String _baseUrl = 'http://localhost:3000';
   late final TabController _tabController;
 
   @override

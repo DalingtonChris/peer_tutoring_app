@@ -32,7 +32,7 @@ class _RequestHelpScreenState extends State<RequestHelpScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.145:3000/api/student/request'),
+        Uri.parse('http://localhost:3000/api/student/request'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "student_id": widget.studentId,

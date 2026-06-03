@@ -20,7 +20,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _selectedRole = 'Student';
   bool _isLoading = false;
 
-  final String registerUrl = 'http://192.168.1.145:3000/api/register';
+  final String registerUrl = 'http://localhost:3000/api/register';
 
   @override
   void dispose() {
