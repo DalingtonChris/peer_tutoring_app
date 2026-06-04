@@ -531,8 +531,10 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
   static const String _baseUrl = AppConfig.baseUrl;
 
   int _ratingScore = 0;
-  int _activeStudents = 0;
   bool _statsLoading = true;
+
+  List<dynamic> _activeStudents = [];
+  bool _studentsLoading = true;
 
   List<dynamic> _requests = [];
   bool _requestsLoading = true;
@@ -546,6 +548,7 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
   void initState() {
     super.initState();
     _loadStats();
+    _loadActiveStudents();
     _loadRequests();
   }
 
@@ -568,15 +571,35 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          _ratingScore    = (data['rating_score']    as num).toInt();
-          _activeStudents = (data['active_students'] as num).toInt();
-          _statsLoading   = false;
+          _ratingScore  = (data['rating_score'] as num).toInt();
+          _statsLoading = false;
         });
       } else {
         setState(() => _statsLoading = false);
       }
     } catch (_) {
       setState(() => _statsLoading = false);
+    }
+  }
+
+  // ── Load active students list ───────────────────────────────────────────────
+  Future<void> _loadActiveStudents() async {
+    setState(() => _studentsLoading = true);
+    try {
+      final tutorId = widget.currentUserData['id'];
+      final response = await http
+          .get(Uri.parse('$_baseUrl/api/tutor/active-students/$tutorId'))
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        setState(() {
+          _activeStudents = jsonDecode(response.body);
+          _studentsLoading = false;
+        });
+      } else {
+        setState(() => _studentsLoading = false);
+      }
+    } catch (_) {
+      setState(() => _studentsLoading = false);
     }
   }
 
@@ -625,8 +648,8 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
             _expandedRequestId = null;
             _sendingReply[requestId] = false;
           });
-          // Refresh requests so the student sees the reply immediately
-          await _loadRequests();
+          // Refresh requests + stats (new +2 credits were just awarded)
+          await Future.wait([_loadRequests(), _loadStats(), _loadActiveStudents()]);
 
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -940,7 +963,7 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          await Future.wait([_loadStats(), _loadRequests()]);
+          await Future.wait([_loadStats(), _loadActiveStudents(), _loadRequests()]);
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -966,7 +989,7 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
                       context,
                       "Rating Score",
                       _statsLoading ? "…" : "$_ratingScore pts",
-                      Icons.star_border,
+                      Icons.star_rounded,
                       Colors.orange,
                     ),
                   ),
@@ -975,7 +998,7 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
                     child: _buildStatCard(
                       context,
                       "Active Students",
-                      _statsLoading ? "…" : "$_activeStudents",
+                      _studentsLoading ? "…" : "${_activeStudents.length}",
                       Icons.people_outline,
                       Colors.purple,
                     ),
@@ -986,14 +1009,101 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
               const SizedBox(height: 6),
               Row(
                 children: [
-                  Icon(Icons.info_outline, size: 13, color: Colors.grey.shade400),
+                  Icon(Icons.info_outline, size: 12, color: Colors.grey.shade400),
                   const SizedBox(width: 5),
                   Text(
-                    '+5 credits each time a new student starts a conversation',
+                    '+5 new student · +2 answered request',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
                   ),
                 ],
               ),
+
+              const SizedBox(height: 24),
+
+              // ── Active Students List ──────────────────────────────────────
+              Row(
+                children: [
+                  const Icon(Icons.people, size: 20, color: Colors.deepPurple),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Active Students',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              if (_studentsLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (_activeStudents.isEmpty)
+                _emptyBox('No active students yet.\nStudents will appear here once they message you.')
+              else
+                ...(_activeStudents.map((s) {
+                  final name    = s['student_name'] ?? 'Student';
+                  final course  = s['course'] ?? '';
+                  final credits = s['credits_given'] ?? 0;
+                  const avatarColors = [
+                    Color(0xFF7B2FBE), Color(0xFF2196F3),
+                    Color(0xFF00897B), Color(0xFFE91E63), Color(0xFFFF6F00),
+                  ];
+                  final color = avatarColors[name.codeUnitAt(0) % avatarColors.length];
+
+                  return Card(
+                    elevation: 0,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.withOpacity(0.15)),
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
+                      leading: CircleAvatar(
+                        radius: 22,
+                        backgroundColor: color.withOpacity(0.15),
+                        child: Text(
+                          name[0].toUpperCase(),
+                          style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16),
+                        ),
+                      ),
+                      title: Text(name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      subtitle: course.isNotEmpty
+                          ? Text(course,
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey))
+                          : null,
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '+$credits pts',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange.shade700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                })),
 
               const SizedBox(height: 28),
 

@@ -175,6 +175,31 @@ app.get('/api/tutor/stats/:tutor_id', (req, res) => {
     });
 });
 
+// ─── TUTOR: Get active students list ─────────────────────────────────────────
+app.get('/api/tutor/active-students/:tutor_id', (req, res) => {
+    const { tutor_id } = req.params;
+    const sql = `
+        SELECT
+            u.id           AS student_id,
+            u.name         AS student_name,
+            u.course       AS course,
+            SUM(tc.credits) AS credits_given,
+            MAX(tc.created_at) AS last_interaction
+        FROM tutor_credits tc
+        JOIN users u ON u.id = tc.student_id
+        WHERE tc.tutor_id = ?
+        GROUP BY u.id, u.name, u.course
+        ORDER BY last_interaction DESC
+    `;
+    db.query(sql, [tutor_id], (err, results) => {
+        if (err) {
+            console.error('❌ active-students error:', err.message);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results);
+    });
+});
+
 // ─── Award +5 credits when a student first messages a tutor ──────────────────
 app.post('/api/tutor/award-credits', (req, res) => {
     const { tutor_id, student_id } = req.body;
@@ -229,6 +254,25 @@ app.post('/api/tutor/reply/:request_id', (req, res) => {
             [request_id],
             (updateErr) => {
                 if (updateErr) console.error("Status update error:", updateErr.message);
+            }
+        );
+
+        // ── Award +2 credits to tutor for answering a request ────────────────
+        db.query(
+            `SELECT student_id FROM requests WHERE id = ? LIMIT 1`,
+            [request_id],
+            (selErr, rows) => {
+                if (selErr || !rows.length) return;
+                const student_id = rows[0].student_id;
+                db.query(
+                    `INSERT INTO tutor_credits (tutor_id, student_id, credits, reason)
+                     VALUES (?, ?, 2, 'answered_request')`,
+                    [tutor_id, student_id],
+                    (insertErr) => {
+                        if (insertErr) console.error('❌ +2 credits error:', insertErr.message);
+                        else console.log(`✅ +2 credits awarded to tutor ${tutor_id} for answering request ${request_id}`);
+                    }
+                );
             }
         );
 
