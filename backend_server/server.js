@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -10,10 +11,10 @@ app.use(express.json());
 
 // ─── 1. Database Connection (Pool — never drops) ──────────────────────────────
 const db = mysql.createPool({
-    host: 'localhost',
-    user: 'root',
-    password: 'anye4cyber1!',
-    database: 'peerconnect_db',
+    host:     process.env.DB_HOST     || 'localhost',
+    user:     process.env.DB_USER     || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME     || 'peerconnect_db',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
@@ -576,7 +577,7 @@ app.get('/api/conversations/:tutorId', (req, res) => {
     });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () =>
-    console.log(`🚀 Server running on http://localhost:${PORT}`)
+    console.log(`🚀 Server running on http://0.0.0.0:${PORT}`)
 );
