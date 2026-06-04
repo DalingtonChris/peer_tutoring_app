@@ -94,7 +94,10 @@ app.post('/api/register', (req, res) => {
     const { name, email, password, role, course } = req.body;
     const sql = "INSERT INTO users (name, email, password, role, course) VALUES (?, ?, ?, ?, ?)";
     db.query(sql, [name, email, password, role, course || 'General'], (err, result) => {
-        if (err) return res.status(500).json({ success: false, message: "Registration failed" });
+        if (err) {
+            console.error('❌ Register SQL error:', err.message);
+            return res.status(500).json({ success: false, message: err.message });
+        }
         res.status(201).json({ success: true, userId: result.insertId });
     });
 });
