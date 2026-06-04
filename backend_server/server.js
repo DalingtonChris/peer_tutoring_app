@@ -98,7 +98,12 @@ app.post('/api/register', (req, res) => {
             console.error('❌ Register SQL error:', err.message);
             return res.status(500).json({ success: false, message: err.message });
         }
-        res.status(201).json({ success: true, userId: result.insertId });
+        db.query("SELECT * FROM users WHERE id = ?", [result.insertId], (err2, rows) => {
+            if (err2 || rows.length === 0) {
+                return res.status(201).json({ success: true, userId: result.insertId });
+            }
+            res.status(201).json({ success: true, user: rows[0] });
+        });
     });
 });
 
