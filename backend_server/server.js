@@ -208,7 +208,7 @@ app.post('/api/tutor/award-credits', (req, res) => {
 
     const checkSql = `
         SELECT id FROM tutor_credits
-        WHERE tutor_id = ? AND student_id = ?
+        WHERE tutor_id = ? AND student_id = ? AND reason = 'new_conversation'
         LIMIT 1
     `;
     db.query(checkSql, [tutor_id, student_id], (err, rows) => {
@@ -239,45 +239,65 @@ app.post('/api/tutor/reply/:request_id', (req, res) => {
         return res.status(400).json({ success: false, message: "Missing tutor_id or reply_text" });
     }
 
-    const insertSql = `
-        INSERT INTO request_replies (request_id, tutor_id, reply_text)
-        VALUES (?, ?, ?)
-    `;
-    db.query(insertSql, [request_id, tutor_id, reply_text.trim()], (err) => {
-        if (err) {
-            console.error("Reply SQL Error:", err);
-            return res.status(500).json({ success: false, message: "Could not save reply" });
-        }
-
-        db.query(
-            "UPDATE requests SET status = 'answered' WHERE id = ?",
-            [request_id],
-            (updateErr) => {
-                if (updateErr) console.error("Status update error:", updateErr.message);
+    // Check if this tutor already has a reply for this request (edit vs first reply)
+    db.query(
+        'SELECT id FROM request_replies WHERE request_id = ? AND tutor_id = ? LIMIT 1',
+        [request_id, tutor_id],
+        (checkErr, existing) => {
+            if (checkErr) {
+                console.error("Reply check error:", checkErr);
+                return res.status(500).json({ success: false, message: "Could not save reply" });
             }
-        );
 
-        // ── Award +2 credits to tutor for answering a request ────────────────
-        db.query(
-            `SELECT student_id FROM requests WHERE id = ? LIMIT 1`,
-            [request_id],
-            (selErr, rows) => {
-                if (selErr || !rows.length) return;
-                const student_id = rows[0].student_id;
+            const isEdit = existing.length > 0;
+
+            const sql    = isEdit
+                ? 'UPDATE request_replies SET reply_text = ? WHERE id = ?'
+                : 'INSERT INTO request_replies (request_id, tutor_id, reply_text) VALUES (?, ?, ?)';
+            const params = isEdit
+                ? [reply_text.trim(), existing[0].id]
+                : [request_id, tutor_id, reply_text.trim()];
+
+            db.query(sql, params, (err) => {
+                if (err) {
+                    console.error("Reply SQL Error:", err);
+                    return res.status(500).json({ success: false, message: "Could not save reply" });
+                }
+
                 db.query(
-                    `INSERT INTO tutor_credits (tutor_id, student_id, credits, reason)
-                     VALUES (?, ?, 2, 'answered_request')`,
-                    [tutor_id, student_id],
-                    (insertErr) => {
-                        if (insertErr) console.error('❌ +2 credits error:', insertErr.message);
-                        else console.log(`✅ +2 credits awarded to tutor ${tutor_id} for answering request ${request_id}`);
+                    "UPDATE requests SET status = 'answered' WHERE id = ?",
+                    [request_id],
+                    (updateErr) => {
+                        if (updateErr) console.error("Status update error:", updateErr.message);
                     }
                 );
-            }
-        );
 
-        res.json({ success: true, message: "Reply sent successfully" });
-    });
+                // ── Award +2 credits only on first reply, not on edits ────────
+                if (!isEdit) {
+                    db.query(
+                        'SELECT student_id FROM requests WHERE id = ? LIMIT 1',
+                        [request_id],
+                        (selErr, rows) => {
+                            if (selErr || !rows.length) return;
+                            db.query(
+                                `INSERT INTO tutor_credits (tutor_id, student_id, credits, reason)
+                                 VALUES (?, ?, 2, 'answered_request')`,
+                                [tutor_id, rows[0].student_id],
+                                (insertErr) => {
+                                    if (insertErr) console.error('❌ +2 credits error:', insertErr.message);
+                                    else console.log(`✅ +2 credits awarded to tutor ${tutor_id} for request ${request_id}`);
+                                }
+                            );
+                        }
+                    );
+                } else {
+                    console.log(`📝 Tutor ${tutor_id} edited reply for request ${request_id} — no credits`);
+                }
+
+                res.json({ success: true, message: isEdit ? "Reply updated" : "Reply sent successfully" });
+            });
+        }
+    );
 });
 
 // ─── STUDENT: Get their own requests + latest reply ──────────────────────────

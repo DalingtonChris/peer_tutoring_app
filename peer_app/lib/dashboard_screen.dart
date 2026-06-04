@@ -951,11 +951,12 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Chip(
+              avatar: const Icon(Icons.star_rounded, size: 16, color: Colors.orange),
               label: Text(
-                "Score: $_ratingScore pts",
+                _statsLoading ? '… pts' : '$_ratingScore pts total',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              backgroundColor: Colors.green.withOpacity(0.1),
+              backgroundColor: Colors.orange.withOpacity(0.1),
               side: BorderSide.none,
             ),
           ),
