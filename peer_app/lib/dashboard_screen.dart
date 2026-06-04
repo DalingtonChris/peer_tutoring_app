@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'app_config.dart';
 import 'find_tutor_screen.dart';
 import 'profile_screen.dart';
 import 'request_help_screen.dart';
@@ -117,7 +118,7 @@ class LearnerHomeTab extends StatefulWidget {
 }
 
 class _LearnerHomeTabState extends State<LearnerHomeTab> {
-  static const String _baseUrl = 'http://localhost:3000';
+  static const String _baseUrl = AppConfig.baseUrl;
 
   List<dynamic> _requests = [];
   List<dynamic> _conversations = [];
@@ -314,16 +315,16 @@ class _LearnerHomeTabState extends State<LearnerHomeTab> {
                                       fontSize: 13, color: Colors.black87),
                                 ),
 
+                                const SizedBox(height: 10),
+
                                 if (hasReply) ...[
-                                  const SizedBox(height: 10),
                                   Container(
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
                                       color: Colors.green.withOpacity(0.06),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
-                                          color:
-                                              Colors.green.withOpacity(0.2)),
+                                          color: Colors.green.withOpacity(0.2)),
                                     ),
                                     child: Row(
                                       crossAxisAlignment:
@@ -354,6 +355,39 @@ class _LearnerHomeTabState extends State<LearnerHomeTab> {
                                                     color: Colors.black87),
                                               ),
                                             ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ] else ...[
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withOpacity(0.07),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color:
+                                              Colors.orange.withOpacity(0.25)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const SizedBox(
+                                          width: 12,
+                                          height: 12,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 1.5,
+                                            color: Colors.orange,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Awaiting tutor reply…',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.orange.shade700,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       ],
@@ -494,7 +528,7 @@ class TutorHomeTab extends StatefulWidget {
 }
 
 class _TutorHomeTabState extends State<TutorHomeTab> {
-  static const String _baseUrl = 'http://localhost:3000';
+  static const String _baseUrl = AppConfig.baseUrl;
 
   int _ratingScore = 0;
   int _activeStudents = 0;
@@ -1126,7 +1160,7 @@ class TutorMessagesTab extends StatefulWidget {
 }
 
 class _TutorMessagesTabState extends State<TutorMessagesTab> {
-  static const String _baseUrl = 'http://localhost:3000';
+  static const String _baseUrl = AppConfig.baseUrl;
   List<dynamic> _conversations = [];
   bool _isLoading = true;
   String? _error;

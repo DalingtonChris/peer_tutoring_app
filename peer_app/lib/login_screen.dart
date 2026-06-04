@@ -18,7 +18,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String _selectedRole = 'learner';
   bool _isPasswordVisible = false;
   bool _isLoading = false;
 
@@ -54,7 +53,7 @@ class _LoginScreenState extends State<LoginScreen> {
           context,
           MaterialPageRoute(
             builder: (context) => DashboardScreen(
-              userRole: user['role'] ?? _selectedRole,
+              userRole: user['role'] ?? 'learner',
               userData: {
                 'id': user['id'],           // ✅ real ID from database
                 'name': user['name'],
@@ -103,32 +102,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                 ),
                 const SizedBox(height: 32),
-
-                // Role selector (just for UI — real role comes from DB)
-                Text(
-                  'Login as:',
-                  style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500),
-                ),
-                const SizedBox(height: 8),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(
-                      value: 'learner',
-                      label: Text('Learner'),
-                      icon: Icon(Icons.menu_book),
-                    ),
-                    ButtonSegment(
-                      value: 'tutor',
-                      label: Text('Tutor'),
-                      icon: Icon(Icons.laptop_chromebook),
-                    ),
-                  ],
-                  selected: {_selectedRole},
-                  onSelectionChanged: (Set<String> newSelection) {
-                    setState(() => _selectedRole = newSelection.first);
-                  },
-                ),
-                const SizedBox(height: 24),
 
                 // Email
                 TextFormField(

@@ -30,6 +30,7 @@ class _ChatScreenState extends State<ChatScreen> {
   IO.Socket? _socket;
   bool _isConnected = false;
   bool _isLoadingHistory = true;
+  bool _disposed = false;
 
   @override
   void initState() {
@@ -47,7 +48,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
       if (response.statusCode == 200) {
         final List<dynamic> history = jsonDecode(response.body);
-        if (mounted) {
+        if (!_disposed && mounted) {
           setState(() {
             _messages.addAll(history.map((m) => {
                   'text': m['message_text'],
@@ -60,7 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoadingHistory = false);
+      if (!_disposed && mounted) setState(() => _isLoadingHistory = false);
     }
   }
 
@@ -73,8 +74,8 @@ class _ChatScreenState extends State<ChatScreen> {
         .build());
 
     _socket!.onConnect((_) {
+      if (_disposed) return;
       if (mounted) setState(() => _isConnected = true);
-      // Join the shared room
       _socket!.emit('join_room', {
         'senderId': widget.currentUserId,
         'receiverId': widget.receiverId,
@@ -82,6 +83,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     _socket!.onDisconnect((_) {
+      if (_disposed) return;
       if (mounted) setState(() => _isConnected = false);
     });
 
@@ -90,13 +92,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // ── Listen for incoming messages ──────────────────────────────────────
     _socket!.on('receive_message', (data) {
-      // Only add if it's from the OTHER person (not ourselves)
+      if (_disposed || !mounted) return;
       final incomingSenderId = data['sender_id'];
       final senderIdInt = incomingSenderId is int
           ? incomingSenderId
           : int.tryParse(incomingSenderId.toString()) ?? -1;
 
-      if (senderIdInt != widget.currentUserId && mounted) {
+      if (senderIdInt != widget.currentUserId) {
         setState(() {
           _messages.add({
             'text': data['message_text'],
@@ -137,8 +139,9 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _scrollToBottom() {
+    if (_disposed) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
+      if (!_disposed && _scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
@@ -150,6 +153,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _disposed = true;
     _socket?.disconnect();
     _socket?.dispose();
     _messageController.dispose();
