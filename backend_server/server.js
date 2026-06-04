@@ -596,6 +596,44 @@ io.on('connection', (socket) => {
                 }
                 const roomName = `room_${Math.min(data.sender_id, data.receiver_id)}_${Math.max(data.sender_id, data.receiver_id)}`;
                 io.to(roomName).emit('receive_message', { ...data, timestamp: new Date().toISOString() });
+
+                // ── Award +5 to the TUTOR when a student messages them for the first time ──
+                db.query(
+                    'SELECT id, role FROM users WHERE id IN (?, ?)',
+                    [data.sender_id, data.receiver_id],
+                    (roleErr, users) => {
+                        if (roleErr || users.length < 2) return;
+
+                        const sender   = users.find(u => u.id === data.sender_id);
+                        const receiver = users.find(u => u.id === data.receiver_id);
+                        if (!sender || !receiver) return;
+
+                        // Only proceed when a learner messages a tutor
+                        if (sender.role !== 'learner' || receiver.role !== 'tutor') return;
+
+                        const tutor_id   = receiver.id; // points go TO the tutor
+                        const student_id = sender.id;   // student triggered the event
+
+                        db.query(
+                            `SELECT id FROM tutor_credits
+                             WHERE tutor_id = ? AND student_id = ? AND reason = 'new_conversation'
+                             LIMIT 1`,
+                            [tutor_id, student_id],
+                            (checkErr, existing) => {
+                                if (checkErr || existing.length > 0) return; // already awarded
+                                db.query(
+                                    `INSERT INTO tutor_credits (tutor_id, student_id, credits, reason)
+                                     VALUES (?, ?, 5, 'new_conversation')`,
+                                    [tutor_id, student_id],
+                                    (insertErr) => {
+                                        if (insertErr) console.error('❌ +5 credits error:', insertErr.message);
+                                        else console.log(`✅ +5 pts awarded to TUTOR ${tutor_id} — new student ${student_id}`);
+                                    }
+                                );
+                            }
+                        );
+                    }
+                );
             }
         );
     });

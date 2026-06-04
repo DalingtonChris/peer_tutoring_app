@@ -1,7 +1,4 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'app_config.dart';
 import 'login_screen.dart';
 import 'tutor_setup_screen.dart';
 
@@ -21,34 +18,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final String _baseUrl = AppConfig.baseUrl;
-  List<dynamic> _studentRequests = [];
-  bool _loadingRequests = true;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.userRole == 'tutor') {
-      _fetchStudentRequests();
-    } else {
-      _loadingRequests = false;
-    }
-  }
-
-  Future<void> _fetchStudentRequests() async {
-    try {
-      final response = await http
-          .get(Uri.parse('$_baseUrl/api/requests'))
-          .timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        setState(() {
-          _studentRequests = jsonDecode(response.body);
-        });
-      }
-    } catch (_) {}
-    setState(() => _loadingRequests = false);
-  }
-
   void _logout() {
     Navigator.pushAndRemoveUntil(
       context,
@@ -179,73 +148,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   },
                 ),
               ),
-
-              const SizedBox(height: 24),
-
-              // ── SECTION 3: Student Requests ──────────────────
-              _sectionTitle('Student Requests'),
-              const SizedBox(height: 12),
-              _loadingRequests
-                  ? const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: CircularProgressIndicator(
-                            color: Color(0xFF7B2FBE)),
-                      ),
-                    )
-                  : _studentRequests.isEmpty
-                      ? Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Text(
-                            'No student requests at the moment.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _studentRequests.length,
-                          itemBuilder: (context, index) {
-                            final req = _studentRequests[index];
-                            return Card(
-                              elevation: 0,
-                              margin: const EdgeInsets.only(bottom: 10),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                    color: Colors.grey.withOpacity(0.15)),
-                              ),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor:
-                                      Colors.deepPurple.withOpacity(0.1),
-                                  child: const Icon(Icons.school,
-                                      color: Colors.deepPurple),
-                                ),
-                                title: Text(
-                                  req['course_name'] ?? 'General Help',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                subtitle: Text(
-                                  req['issue_description'] ??
-                                      'No description provided',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: const Icon(Icons.arrow_forward_ios,
-                                    size: 14, color: Colors.grey),
-                                onTap: () {},
-                              ),
-                            );
-                          },
-                        ),
 
               const SizedBox(height: 24),
             ],
