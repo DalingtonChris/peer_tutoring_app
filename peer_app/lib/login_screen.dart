@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'app_config.dart';
 import 'dashboard_screen.dart';
 import 'register_screen.dart';
 
@@ -12,7 +13,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const String _baseUrl = 'http://localhost:3000';
+  static const String _baseUrl = AppConfig.baseUrl;
 
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();

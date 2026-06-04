@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'app_config.dart';
 import 'login_screen.dart';
 import 'tutor_setup_screen.dart';
 
@@ -20,7 +21,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final String _baseUrl = 'http://localhost:3000';
+  final String _baseUrl = AppConfig.baseUrl;
   List<dynamic> _studentRequests = [];
   bool _loadingRequests = true;
 

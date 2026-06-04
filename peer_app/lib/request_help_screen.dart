@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'app_config.dart';
 
 class RequestHelpScreen extends StatefulWidget {
   final int studentId;
@@ -32,7 +33,7 @@ class _RequestHelpScreenState extends State<RequestHelpScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:3000/api/student/request'),
+        Uri.parse('${AppConfig.baseUrl}/api/student/request'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "student_id": widget.studentId,

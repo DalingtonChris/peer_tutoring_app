@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'app_config.dart';
 
 class ChatScreen extends StatefulWidget {
   final int currentUserId;
@@ -20,7 +21,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  static const String _baseUrl = 'http://localhost:3000';
+  static const String _baseUrl = AppConfig.baseUrl;
 
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();

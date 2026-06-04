@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'app_config.dart';
 import 'dashboard_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -20,7 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _selectedRole = 'Student';
   bool _isLoading = false;
 
-  final String registerUrl = 'http://localhost:3000/api/register';
+  final String registerUrl = '${AppConfig.baseUrl}/api/register';
 
   @override
   void dispose() {
