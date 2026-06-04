@@ -984,41 +984,78 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
               ),
               const SizedBox(height: 16),
 
-              // ── Stats Row ─────────────────────────────────────────────────
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      context,
-                      "Rating Score",
-                      _statsLoading ? "…" : "$_ratingScore pts",
-                      Icons.star_rounded,
-                      Colors.orange,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      context,
-                      "Active Students",
-                      _studentsLoading ? "…" : "${_activeStudents.length}",
-                      Icons.people_outline,
-                      Colors.purple,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Icon(Icons.info_outline, size: 12, color: Colors.grey.shade400),
-                  const SizedBox(width: 5),
-                  Text(
-                    '+5 new student · +2 answered request',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-                  ),
-                ],
+              // ── Score breakdown card ───────────────────────────────────────
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.orange.withOpacity(0.25)),
+                ),
+                child: _statsLoading || _studentsLoading
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(8),
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.orange),
+                        ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.star_rounded,
+                                  color: Colors.orange, size: 20),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Total Score',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '$_ratingScore pts',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(height: 1),
+                          const SizedBox(height: 10),
+                          // Formula row
+                          Row(
+                            children: [
+                              _formulaChip(
+                                Icons.people_outline,
+                                Colors.purple,
+                                '${_activeStudents.length} students',
+                                '× 5 = ${_activeStudents.length * 5} pts',
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('+',
+                                  style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey)),
+                              const SizedBox(width: 8),
+                              _formulaChip(
+                                Icons.reply_outlined,
+                                Colors.teal,
+                                '$_answeredRequests replies',
+                                '× 2 = ${_answeredRequests * 2} pts',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
               ),
 
               const SizedBox(height: 24),
@@ -1213,31 +1250,36 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
     );
   }
 
-  Widget _buildStatCard(BuildContext context, String title, String value,
-      IconData icon, Color color) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.withOpacity(0.2)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+  Widget _formulaChip(
+      IconData icon, Color color, String label, String pts) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: Theme.of(context)
-                  .textTheme
-                  .headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 4),
-            Text(title,
-                style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            Row(children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(label,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: color)),
+              ),
+            ]),
+            const SizedBox(height: 2),
+            Text(pts,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87)),
           ],
         ),
       ),

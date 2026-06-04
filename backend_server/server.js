@@ -158,9 +158,9 @@ app.get('/api/tutor/stats/:tutor_id', (req, res) => {
 
     const sql = `
         SELECT
-            COUNT(CASE WHEN reason = 'new_conversation'  THEN 1 END)          AS active_students,
+            COUNT(DISTINCT student_id)                                         AS active_students,
             COUNT(CASE WHEN reason = 'answered_request'  THEN 1 END)          AS answered_requests,
-            (COUNT(CASE WHEN reason = 'new_conversation' THEN 1 END) * 5)
+            (COUNT(DISTINCT student_id) * 5)
             + COALESCE(SUM(CASE WHEN reason = 'answered_request' THEN credits ELSE 0 END), 0)
                                                                                AS rating_score
         FROM tutor_credits
