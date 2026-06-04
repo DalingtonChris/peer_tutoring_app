@@ -531,6 +531,7 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
   static const String _baseUrl = AppConfig.baseUrl;
 
   int _ratingScore = 0;
+  int _answeredRequests = 0;
   bool _statsLoading = true;
 
   List<dynamic> _activeStudents = [];
@@ -571,8 +572,9 @@ class _TutorHomeTabState extends State<TutorHomeTab> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          _ratingScore  = (data['rating_score'] as num).toInt();
-          _statsLoading = false;
+          _ratingScore       = (data['rating_score']      as num).toInt();
+          _answeredRequests  = (data['answered_requests'] as num).toInt();
+          _statsLoading      = false;
         });
       } else {
         setState(() => _statsLoading = false);

@@ -152,13 +152,17 @@ app.get('/api/tutor/profile/:tutor_id', (req, res) => {
 });
 
 // ─── TUTOR: Get dashboard stats ───────────────────────────────────────────────
+// Formula: rating_score = (5 × active_students) + (2 × answered_requests)
 app.get('/api/tutor/stats/:tutor_id', (req, res) => {
     const { tutor_id } = req.params;
 
     const sql = `
         SELECT
-            COALESCE(SUM(credits), 0)   AS rating_score,
-            COUNT(DISTINCT student_id)  AS active_students
+            COUNT(CASE WHEN reason = 'new_conversation'  THEN 1 END)          AS active_students,
+            COUNT(CASE WHEN reason = 'answered_request'  THEN 1 END)          AS answered_requests,
+            (COUNT(CASE WHEN reason = 'new_conversation' THEN 1 END) * 5)
+            + COALESCE(SUM(CASE WHEN reason = 'answered_request' THEN credits ELSE 0 END), 0)
+                                                                               AS rating_score
         FROM tutor_credits
         WHERE tutor_id = ?
     `;
@@ -168,9 +172,11 @@ app.get('/api/tutor/stats/:tutor_id', (req, res) => {
             console.error("Stats SQL Error:", err);
             return res.status(500).json({ error: "Failed to fetch stats" });
         }
+        const row = results[0];
         res.json({
-            rating_score:    results[0].rating_score    || 0,
-            active_students: results[0].active_students || 0,
+            rating_score:      Number(row.rating_score)      || 0,
+            active_students:   Number(row.active_students)   || 0,
+            answered_requests: Number(row.answered_requests) || 0,
         });
     });
 });
