@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -10,10 +11,10 @@ app.use(express.json());
 
 // ─── 1. Database Connection (Pool — never drops) ──────────────────────────────
 const db = mysql.createPool({
-    host: 'localhost',
-    user: 'root',
-    password: 'anye4cyber1!',
-    database: 'peerconnect_db',
+    host:     process.env.DB_HOST     || 'localhost',
+    user:     process.env.DB_USER     || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME     || 'peerconnect_db',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
@@ -93,8 +94,16 @@ app.post('/api/register', (req, res) => {
     const { name, email, password, role, course } = req.body;
     const sql = "INSERT INTO users (name, email, password, role, course) VALUES (?, ?, ?, ?, ?)";
     db.query(sql, [name, email, password, role, course || 'General'], (err, result) => {
-        if (err) return res.status(500).json({ success: false, message: "Registration failed" });
-        res.status(201).json({ success: true, userId: result.insertId });
+        if (err) {
+            console.error('❌ Register SQL error:', err.message);
+            return res.status(500).json({ success: false, message: err.message });
+        }
+        db.query("SELECT * FROM users WHERE id = ?", [result.insertId], (err2, rows) => {
+            if (err2 || rows.length === 0) {
+                return res.status(201).json({ success: true, userId: result.insertId });
+            }
+            res.status(201).json({ success: true, user: rows[0] });
+        });
     });
 });
 
@@ -143,13 +152,17 @@ app.get('/api/tutor/profile/:tutor_id', (req, res) => {
 });
 
 // ─── TUTOR: Get dashboard stats ───────────────────────────────────────────────
+// Formula: rating_score = (5 × active_students) + (2 × answered_requests)
 app.get('/api/tutor/stats/:tutor_id', (req, res) => {
     const { tutor_id } = req.params;
 
     const sql = `
         SELECT
-            COALESCE(SUM(credits), 0)   AS rating_score,
-            COUNT(DISTINCT student_id)  AS active_students
+            COUNT(DISTINCT student_id)                                         AS active_students,
+            COUNT(CASE WHEN reason = 'answered_request'  THEN 1 END)          AS answered_requests,
+            (COUNT(DISTINCT student_id) * 5)
+            + COALESCE(SUM(CASE WHEN reason = 'answered_request' THEN credits ELSE 0 END), 0)
+                                                                               AS rating_score
         FROM tutor_credits
         WHERE tutor_id = ?
     `;
@@ -159,10 +172,37 @@ app.get('/api/tutor/stats/:tutor_id', (req, res) => {
             console.error("Stats SQL Error:", err);
             return res.status(500).json({ error: "Failed to fetch stats" });
         }
+        const row = results[0];
         res.json({
-            rating_score:    results[0].rating_score    || 0,
-            active_students: results[0].active_students || 0,
+            rating_score:      Number(row.rating_score)      || 0,
+            active_students:   Number(row.active_students)   || 0,
+            answered_requests: Number(row.answered_requests) || 0,
         });
+    });
+});
+
+// ─── TUTOR: Get active students list ─────────────────────────────────────────
+app.get('/api/tutor/active-students/:tutor_id', (req, res) => {
+    const { tutor_id } = req.params;
+    const sql = `
+        SELECT
+            u.id           AS student_id,
+            u.name         AS student_name,
+            u.course       AS course,
+            SUM(tc.credits) AS credits_given,
+            MAX(tc.created_at) AS last_interaction
+        FROM tutor_credits tc
+        JOIN users u ON u.id = tc.student_id
+        WHERE tc.tutor_id = ?
+        GROUP BY u.id, u.name, u.course
+        ORDER BY last_interaction DESC
+    `;
+    db.query(sql, [tutor_id], (err, results) => {
+        if (err) {
+            console.error('❌ active-students error:', err.message);
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(results);
     });
 });
 
@@ -174,7 +214,7 @@ app.post('/api/tutor/award-credits', (req, res) => {
 
     const checkSql = `
         SELECT id FROM tutor_credits
-        WHERE tutor_id = ? AND student_id = ?
+        WHERE tutor_id = ? AND student_id = ? AND reason = 'new_conversation'
         LIMIT 1
     `;
     db.query(checkSql, [tutor_id, student_id], (err, rows) => {
@@ -205,26 +245,65 @@ app.post('/api/tutor/reply/:request_id', (req, res) => {
         return res.status(400).json({ success: false, message: "Missing tutor_id or reply_text" });
     }
 
-    const insertSql = `
-        INSERT INTO request_replies (request_id, tutor_id, reply_text)
-        VALUES (?, ?, ?)
-    `;
-    db.query(insertSql, [request_id, tutor_id, reply_text.trim()], (err) => {
-        if (err) {
-            console.error("Reply SQL Error:", err);
-            return res.status(500).json({ success: false, message: "Could not save reply" });
-        }
-
-        db.query(
-            "UPDATE requests SET status = 'answered' WHERE id = ?",
-            [request_id],
-            (updateErr) => {
-                if (updateErr) console.error("Status update error:", updateErr.message);
+    // Check if this tutor already has a reply for this request (edit vs first reply)
+    db.query(
+        'SELECT id FROM request_replies WHERE request_id = ? AND tutor_id = ? LIMIT 1',
+        [request_id, tutor_id],
+        (checkErr, existing) => {
+            if (checkErr) {
+                console.error("Reply check error:", checkErr);
+                return res.status(500).json({ success: false, message: "Could not save reply" });
             }
-        );
 
-        res.json({ success: true, message: "Reply sent successfully" });
-    });
+            const isEdit = existing.length > 0;
+
+            const sql    = isEdit
+                ? 'UPDATE request_replies SET reply_text = ? WHERE id = ?'
+                : 'INSERT INTO request_replies (request_id, tutor_id, reply_text) VALUES (?, ?, ?)';
+            const params = isEdit
+                ? [reply_text.trim(), existing[0].id]
+                : [request_id, tutor_id, reply_text.trim()];
+
+            db.query(sql, params, (err) => {
+                if (err) {
+                    console.error("Reply SQL Error:", err);
+                    return res.status(500).json({ success: false, message: "Could not save reply" });
+                }
+
+                db.query(
+                    "UPDATE requests SET status = 'answered' WHERE id = ?",
+                    [request_id],
+                    (updateErr) => {
+                        if (updateErr) console.error("Status update error:", updateErr.message);
+                    }
+                );
+
+                // ── Award +2 credits only on first reply, not on edits ────────
+                if (!isEdit) {
+                    db.query(
+                        'SELECT student_id FROM requests WHERE id = ? LIMIT 1',
+                        [request_id],
+                        (selErr, rows) => {
+                            if (selErr || !rows.length) return;
+                            db.query(
+                                `INSERT INTO tutor_credits (tutor_id, student_id, credits, reason)
+                                 VALUES (?, ?, 2, 'answered_request')`,
+                                [tutor_id, rows[0].student_id],
+                                (insertErr) => {
+                                    if (insertErr) console.error('❌ +2 credits error:', insertErr.message);
+                                    else console.log(`✅ +2 credits awarded to tutor ${tutor_id} for request ${request_id}`);
+                                }
+                            );
+                        }
+                    );
+                } else {
+                    console.log(`📝 Tutor ${tutor_id} edited reply for request ${request_id} — no credits`);
+                }
+
+                res.json({ success: true, message: isEdit ? "Reply updated" : "Reply sent successfully" });
+            });
+        }
+    );
 });
 
 // ─── STUDENT: Get their own requests + latest reply ──────────────────────────
@@ -523,6 +602,44 @@ io.on('connection', (socket) => {
                 }
                 const roomName = `room_${Math.min(data.sender_id, data.receiver_id)}_${Math.max(data.sender_id, data.receiver_id)}`;
                 io.to(roomName).emit('receive_message', { ...data, timestamp: new Date().toISOString() });
+
+                // ── Award +5 to the TUTOR when a student messages them for the first time ──
+                db.query(
+                    'SELECT id, role FROM users WHERE id IN (?, ?)',
+                    [data.sender_id, data.receiver_id],
+                    (roleErr, users) => {
+                        if (roleErr || users.length < 2) return;
+
+                        const sender   = users.find(u => u.id === data.sender_id);
+                        const receiver = users.find(u => u.id === data.receiver_id);
+                        if (!sender || !receiver) return;
+
+                        // Only proceed when a learner messages a tutor
+                        if (sender.role !== 'learner' || receiver.role !== 'tutor') return;
+
+                        const tutor_id   = receiver.id; // points go TO the tutor
+                        const student_id = sender.id;   // student triggered the event
+
+                        db.query(
+                            `SELECT id FROM tutor_credits
+                             WHERE tutor_id = ? AND student_id = ? AND reason = 'new_conversation'
+                             LIMIT 1`,
+                            [tutor_id, student_id],
+                            (checkErr, existing) => {
+                                if (checkErr || existing.length > 0) return; // already awarded
+                                db.query(
+                                    `INSERT INTO tutor_credits (tutor_id, student_id, credits, reason)
+                                     VALUES (?, ?, 5, 'new_conversation')`,
+                                    [tutor_id, student_id],
+                                    (insertErr) => {
+                                        if (insertErr) console.error('❌ +5 credits error:', insertErr.message);
+                                        else console.log(`✅ +5 pts awarded to TUTOR ${tutor_id} — new student ${student_id}`);
+                                    }
+                                );
+                            }
+                        );
+                    }
+                );
             }
         );
     });
@@ -576,7 +693,7 @@ app.get('/api/conversations/:tutorId', (req, res) => {
     });
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () =>
-    console.log(`🚀 Server running on http://localhost:${PORT}`)
+    console.log(`🚀 Server running on http://0.0.0.0:${PORT}`)
 );

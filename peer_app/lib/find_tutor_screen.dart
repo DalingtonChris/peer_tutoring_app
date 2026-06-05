@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'app_config.dart';
 import 'chat_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17,7 +18,7 @@ class FindTutorScreen extends StatefulWidget {
 }
 
 class _FindTutorScreenState extends State<FindTutorScreen> {
-  static const String _baseUrl = 'http://localhost:3000';
+  static const String _baseUrl = AppConfig.baseUrl;
 
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';

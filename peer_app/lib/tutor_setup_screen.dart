@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'app_config.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TUTOR SETUP SCREEN  —  TabBar: "My Profile"  |  "My Subjects"
@@ -21,7 +22,7 @@ class TutorSetupScreen extends StatefulWidget {
 
 class _TutorSetupScreenState extends State<TutorSetupScreen>
     with SingleTickerProviderStateMixin {
-  static const String _baseUrl = 'http://localhost:3000';
+  static const String _baseUrl = AppConfig.baseUrl;
   late final TabController _tabController;
 
   @override

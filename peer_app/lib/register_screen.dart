@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'app_config.dart';
 import 'dashboard_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -20,7 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _selectedRole = 'Student';
   bool _isLoading = false;
 
-  final String registerUrl = 'http://localhost:3000/api/register';
+  final String registerUrl = '${AppConfig.baseUrl}/api/register';
 
   @override
   void dispose() {
@@ -38,6 +39,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     String assignedRole = _selectedRole == 'Tutor' ? 'tutor' : 'learner';
 
+    debugPrint('[Register] Hitting URL: $registerUrl');
+    debugPrint('[Register] Payload: name=${_nameController.text.trim()}, email=${_emailController.text.trim()}, role=$assignedRole');
+
     try {
       final response = await http.post(
         Uri.parse(registerUrl),
@@ -48,9 +52,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'password': _passwordController.text.trim(),
           'role': assignedRole,
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
 
-      // ✅ ONE declaration only — used throughout the block below
+      debugPrint('[Register] Status: ${response.statusCode}');
+      debugPrint('[Register] Body: ${response.body}');
+
       final responseData = jsonDecode(response.body);
 
       if (response.statusCode == 201) {
@@ -78,15 +84,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content:
-                  Text(responseData['message'] ?? 'Registration failed')),
+            content: Text('Error ${response.statusCode}: ${responseData['message'] ?? response.body}'),
+            duration: const Duration(seconds: 6),
+          ),
         );
       }
     } catch (e) {
+      debugPrint('[Register] EXCEPTION: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Could not connect to backend server.')),
+        SnackBar(
+          content: Text('Connection error: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 8),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
